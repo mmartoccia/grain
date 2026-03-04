@@ -6,10 +6,11 @@ Anti-slop linter for AI-assisted codebases. Detects AI-generated code and docume
 
 AI code has tells. `grain` flags them so a human can decide whether to keep, rewrite, or suppress. It does not auto-fix -- fixing requires judgment.
 
-## Install
+## Quick start
 
 ```bash
-pip install -e /path/to/grain
+pip install grain        # from PyPI (coming soon)
+pip install -e .         # from source
 ```
 
 ## Usage
@@ -39,7 +40,7 @@ grain suppress FILE:LINE RULE  # add inline suppression comment
 
 | Rule | Severity | Description |
 |------|----------|-------------|
-| HEDGE_WORD | error | AI hedging language (robust, seamless, leverage...) |
+| HEDGE_WORD | error | AI filler words -- see `hedge_words` in config |
 | THANKS_OPENER | error | README/CONTRIBUTING opens with "Thanks for contributing" |
 | OBVIOUS_HEADER | warn | header content fully restated in following paragraph |
 | BULLET_PROSE | warn | short bullet list that reads better as a sentence |
