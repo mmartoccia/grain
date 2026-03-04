@@ -1,0 +1,322 @@
+"""Tests for Python slop checks."""
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import pytest
+from grain.checks.python_checks import (
+    ObviousComment,
+    NakedExcept,
+    RestatedDocstring,
+    VagueTodo,
+    SingleImplAbc,
+    GenericVarname,
+)
+
+CONFIG = {
+    "grain": {"fail_on": [], "warn_only": [], "ignore": []},
+    "python": {"generic_varnames": ["process_data", "handle_response", "get_result", "do_thing"]},
+    "markdown": {"hedge_words": []},
+}
+
+
+# ---------------------------------------------------------------------------
+# OBVIOUS_COMMENT
+# ---------------------------------------------------------------------------
+
+class TestObviousComment:
+    check = ObviousComment()
+
+    def test_fires_on_restatement(self):
+        source = """\
+# return result
+return result
+"""
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 1
+        assert violations[0].rule == "OBVIOUS_COMMENT"
+        assert violations[0].line == 1
+
+    def test_passes_on_meaningful_comment(self):
+        source = """\
+# Cap retries to avoid thundering herd
+return min(retries, MAX_RETRIES)
+"""
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_empty_file(self):
+        violations = list(self.check.check("test.py", "", CONFIG))
+        assert violations == []
+
+    def test_single_line(self):
+        source = "x = 1\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert violations == []
+
+    def test_fires_on_write_cache(self):
+        # comment words: {write, data, cache}, code tokens: {write, data, cache}
+        source = """\
+# write data to cache
+write_data_to_cache(data)
+"""
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 1
+
+    def test_no_fire_on_suppressed(self):
+        source = """\
+# return result  # grain: ignore OBVIOUS_COMMENT
+return result
+"""
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+
+# ---------------------------------------------------------------------------
+# NAKED_EXCEPT
+# ---------------------------------------------------------------------------
+
+class TestNakedExcept:
+    check = NakedExcept()
+
+    def test_fires_on_bare_except(self):
+        source = """\
+try:
+    do_something()
+except Exception as e:
+    logger.error(e)
+"""
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert any(v.rule == "NAKED_EXCEPT" for v in violations)
+
+    def test_fires_on_except_pass(self):
+        source = """\
+try:
+    do_something()
+except Exception:
+    pass
+"""
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert any(v.rule == "NAKED_EXCEPT" for v in violations)
+
+    def test_passes_when_reraise(self):
+        source = """\
+try:
+    do_something()
+except Exception as e:
+    logger.error(e)
+    raise
+"""
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_passes_specific_exception(self):
+        source = """\
+try:
+    do_something()
+except ValueError as e:
+    logger.error(e)
+"""
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_empty_file(self):
+        violations = list(self.check.check("test.py", "", CONFIG))
+        assert violations == []
+
+    def test_syntax_error_file(self):
+        source = "def foo(:\n    pass\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert violations == []
+
+
+# ---------------------------------------------------------------------------
+# RESTATED_DOCSTRING
+# ---------------------------------------------------------------------------
+
+class TestRestatedDocstring:
+    check = RestatedDocstring()
+
+    def test_fires_on_gets_the_data(self):
+        source = '''\
+def get_data():
+    """Gets the data."""
+    pass
+'''
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert any(v.rule == "RESTATED_DOCSTRING" for v in violations)
+
+    def test_fires_on_class_restatement(self):
+        source = '''\
+class DataProcessor:
+    """A class for processing data."""
+    pass
+'''
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert any(v.rule == "RESTATED_DOCSTRING" for v in violations)
+
+    def test_passes_meaningful_docstring(self):
+        source = '''\
+def get_data():
+    """Fetch records from the upstream cache, applying TTL-based invalidation."""
+    pass
+'''
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_passes_no_docstring(self):
+        source = '''\
+def get_data():
+    pass
+'''
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_empty_file(self):
+        violations = list(self.check.check("test.py", "", CONFIG))
+        assert violations == []
+
+
+# ---------------------------------------------------------------------------
+# VAGUE_TODO
+# ---------------------------------------------------------------------------
+
+class TestVagueTodo:
+    check = VagueTodo()
+
+    def test_fires_on_implement_this(self):
+        source = "# TODO: implement this\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert any(v.rule == "VAGUE_TODO" for v in violations)
+
+    def test_fires_on_add_error_handling(self):
+        source = "# TODO: add error handling\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert any(v.rule == "VAGUE_TODO" for v in violations)
+
+    def test_fires_on_improve_performance(self):
+        source = "# TODO: improve performance\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert any(v.rule == "VAGUE_TODO" for v in violations)
+
+    def test_passes_specific_todo(self):
+        source = "# TODO: replace edge-density heuristic with MobileNet (needs ~50MB model)\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_passes_fixme_with_reason(self):
+        source = "# FIXME: blocked by upstream bug in requests>=2.31 -- see issue #4521\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_empty_file(self):
+        violations = list(self.check.check("test.py", "", CONFIG))
+        assert violations == []
+
+    def test_no_todo(self):
+        source = "x = 1  # increment x\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+
+# ---------------------------------------------------------------------------
+# SINGLE_IMPL_ABC
+# ---------------------------------------------------------------------------
+
+class TestSingleImplAbc:
+    check = SingleImplAbc()
+
+    def test_fires_on_single_concrete_impl(self):
+        source = '''\
+import abc
+
+class Fetcher(abc.ABC):
+    @abc.abstractmethod
+    def fetch(self):
+        pass
+
+class HttpFetcher(Fetcher):
+    def fetch(self):
+        return requests.get(self.url)
+'''
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert any(v.rule == "SINGLE_IMPL_ABC" for v in violations)
+
+    def test_passes_multiple_impls(self):
+        source = '''\
+import abc
+
+class Fetcher(abc.ABC):
+    @abc.abstractmethod
+    def fetch(self):
+        pass
+
+class HttpFetcher(Fetcher):
+    def fetch(self):
+        return requests.get(self.url)
+
+class FileFetcher(Fetcher):
+    def fetch(self):
+        return open(self.path).read()
+'''
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_passes_no_abc(self):
+        source = '''\
+class Fetcher:
+    def fetch(self):
+        pass
+'''
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_empty_file(self):
+        violations = list(self.check.check("test.py", "", CONFIG))
+        assert violations == []
+
+
+# ---------------------------------------------------------------------------
+# GENERIC_VARNAME
+# ---------------------------------------------------------------------------
+
+class TestGenericVarname:
+    check = GenericVarname()
+
+    def test_fires_on_process_data(self):
+        source = '''\
+def process_data(data):
+    return data
+'''
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert any(v.rule == "GENERIC_VARNAME" for v in violations)
+
+    def test_fires_on_handle_response(self):
+        source = '''\
+def handle_response(resp):
+    return resp.json()
+'''
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert any(v.rule == "GENERIC_VARNAME" for v in violations)
+
+    def test_passes_specific_name(self):
+        source = '''\
+def parse_satellite_telemetry(raw_bytes):
+    return struct.unpack(">HH", raw_bytes)
+'''
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_empty_file(self):
+        violations = list(self.check.check("test.py", "", CONFIG))
+        assert violations == []
+
+    def test_configurable_list(self):
+        source = '''\
+def custom_bad_name(x):
+    pass
+'''
+        custom_config = dict(CONFIG)
+        custom_config["python"] = {"generic_varnames": ["custom_bad_name"]}
+        violations = list(self.check.check("test.py", source, custom_config))
+        assert any(v.rule == "GENERIC_VARNAME" for v in violations)

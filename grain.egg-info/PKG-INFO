@@ -1,0 +1,8 @@
+Metadata-Version: 2.4
+Name: grain
+Version: 0.1.0
+Summary: Anti-slop linter for AI-assisted codebases
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Provides-Extra: dev
+Requires-Dist: pytest>=7; extra == "dev"

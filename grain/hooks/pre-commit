@@ -1,0 +1,4 @@
+#!/bin/sh
+# grain pre-commit hook
+# Installed by `grain install` or via pre-commit framework
+exec grain check

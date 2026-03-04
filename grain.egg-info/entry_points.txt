@@ -1,0 +1,2 @@
+[console_scripts]
+grain = grain.cli:main
