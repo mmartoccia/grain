@@ -32,6 +32,7 @@ DEFAULTS: dict[str, Any] = {
             "BULLET_PROSE",
         ],
         "ignore": [],
+        "exclude": [],
     },
     "python": {
         "generic_varnames": [
@@ -95,7 +96,7 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
     # Merge grain section
     if "grain" in raw:
         grain_section = raw["grain"]
-        for key in ("fail_on", "warn_only", "ignore"):
+        for key in ("fail_on", "warn_only", "ignore", "exclude"):
             if key in grain_section:
                 config["grain"][key] = grain_section[key]
 

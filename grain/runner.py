@@ -1,6 +1,7 @@
 """grain runner -- orchestrates checks, collects violations, formats output."""
 from __future__ import annotations
 
+import fnmatch
 import os
 import subprocess
 import sys
@@ -71,8 +72,11 @@ def run_checks(
     fail_on: set[str] = set(config["grain"]["fail_on"])
     warn_only: set[str] = set(config["grain"]["warn_only"])
     ignore_rules: set[str] = set(config["grain"]["ignore"])
+    exclude_patterns: list[str] = config["grain"].get("exclude", [])
 
     for filepath in files:
+        if any(fnmatch.fnmatch(filepath, pat) for pat in exclude_patterns):
+            continue
         path = Path(filepath)
         kind = _classify_file(filepath)
         if kind == "unknown":
