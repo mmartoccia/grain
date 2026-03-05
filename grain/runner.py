@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Sequence
 
 from grain.checks.base import Violation
-from grain.checks.python_checks import PYTHON_CHECKS
+from grain.checks.python_checks import PYTHON_CHECKS, OPT_IN_PYTHON_CHECKS
 from grain.checks.markdown_checks import MARKDOWN_CHECKS
 from grain.checks.commit_checks import COMMIT_CHECKS
 from grain.config import load_config
@@ -73,6 +73,11 @@ def run_checks(
     warn_only: set[str] = set(config["grain"]["warn_only"])
     ignore_rules: set[str] = set(config["grain"]["ignore"])
     exclude_patterns: list[str] = config["grain"].get("exclude", [])
+    # Activate opt-in checks that are explicitly listed in fail_on or warn_only
+    active_opt_ins = {
+        rule: check for rule, check in OPT_IN_PYTHON_CHECKS.items()
+        if rule in fail_on or rule in warn_only
+    }
 
     for filepath in files:
         if any(fnmatch.fnmatch(filepath, pat) for pat in exclude_patterns):
@@ -86,7 +91,7 @@ def run_checks(
         except (OSError, PermissionError):
             continue
 
-        checks = PYTHON_CHECKS if kind == "python" else MARKDOWN_CHECKS
+        checks = (PYTHON_CHECKS + list(active_opt_ins.values())) if kind == "python" else MARKDOWN_CHECKS
 
         for check in checks:
             if check.rule in ignore_rules:

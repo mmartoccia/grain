@@ -420,6 +420,36 @@ def foo():
         assert len(violations) == 1
         assert "TODO" in violations[0].message
 
+    def test_section_label_passes(self):
+        source = "# Helpers\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_numbered_section_label_passes(self):
+        source = "# 1. OBVIOUS_COMMENT\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_section_label_registry_passes(self):
+        source = "# Registry\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_violation_message_is_clean(self):
+        source = "# this function does important stuff\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 1
+        # Message should NOT dump the full allowed tags list
+        assert "['BUG'" not in violations[0].message
+        assert "use # TAG: description" in violations[0].message
+
+    def test_not_in_default_checks(self):
+        # TAG_COMMENT should NOT be in the default PYTHON_CHECKS list
+        from grain.checks.python_checks import PYTHON_CHECKS, OPT_IN_PYTHON_CHECKS
+        default_rules = {c.rule for c in PYTHON_CHECKS}
+        assert "TAG_COMMENT" not in default_rules
+        assert "TAG_COMMENT" in OPT_IN_PYTHON_CHECKS
+
     def test_empty_file(self):
         violations = list(self.check.check("test.py", "", CONFIG))
         assert violations == []

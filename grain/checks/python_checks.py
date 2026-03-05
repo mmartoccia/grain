@@ -349,6 +349,12 @@ _SKIP_COMMENT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Section label headers: "# Helpers", "# Registry", "# 1. OBVIOUS_COMMENT"
+_SECTION_LABEL_PATTERN = re.compile(
+    r"^#\s*(?:\d+\.?\s+)?"        # optional numbered prefix: "1." or "1 "
+    r"[A-Z][A-Za-z0-9_ ]*$"      # capitalized label, no punctuation except underscore
+)
+
 
 class TagComment(BaseCheck):
     rule = "TAG_COMMENT"
@@ -408,6 +414,10 @@ class TagComment(BaseCheck):
             if _SKIP_COMMENT_PATTERN.match(comment_text):
                 continue
 
+            # Skip section label headers (e.g., "# Helpers", "# 1. Registry")
+            if _SECTION_LABEL_PATTERN.match(comment_text):
+                continue
+
             # Check if comment matches a valid tag format
             m = _TAG_COMMENT_PATTERN.match(comment_text)
             if m:
@@ -419,7 +429,7 @@ class TagComment(BaseCheck):
                     path=path,
                     line=i + 1,
                     rule=self.rule,
-                    message=f'comment tag "{m.group(1)}" not in allowed tags: {sorted(allowed_tags)}',
+                    message=f'comment tag "{m.group(1)}" not in allowed tags',
                     severity="warn",
                 )
             else:
@@ -427,7 +437,7 @@ class TagComment(BaseCheck):
                     path=path,
                     line=i + 1,
                     rule=self.rule,
-                    message=f'untagged comment -- use # TAG: description (allowed: {sorted(allowed_tags)})',
+                    message="untagged comment -- use # TAG: description",
                     severity="warn",
                 )
 
@@ -436,6 +446,7 @@ class TagComment(BaseCheck):
 # Registry
 # ---------------------------------------------------------------------------
 
+# Default checks -- always active
 PYTHON_CHECKS = [
     ObviousComment(),
     NakedExcept(),
@@ -443,5 +454,9 @@ PYTHON_CHECKS = [
     VagueTodo(),
     SingleImplAbc(),
     GenericVarname(),
-    TagComment(),
 ]
+
+# Opt-in checks -- only active when explicitly added to fail_on or warn_only
+OPT_IN_PYTHON_CHECKS = {
+    "TAG_COMMENT": TagComment(),
+}
