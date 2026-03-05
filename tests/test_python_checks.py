@@ -11,6 +11,7 @@ from grain.checks.python_checks import (
     VagueTodo,
     SingleImplAbc,
     GenericVarname,
+    TagComment,
 )
 
 CONFIG = {
@@ -320,3 +321,105 @@ def custom_bad_name(x):
         custom_config["python"] = {"generic_varnames": ["custom_bad_name"]}
         violations = list(self.check.check("test.py", source, custom_config))
         assert any(v.rule == "GENERIC_VARNAME" for v in violations)
+
+
+# ---------------------------------------------------------------------------
+# TAG_COMMENT
+# ---------------------------------------------------------------------------
+
+class TestTagComment:
+    check = TagComment()
+
+    def test_valid_tag_passes(self):
+        source = "# TODO: refactor the cache layer to use Redis\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_valid_tag_note_passes(self):
+        source = "# NOTE: this is intentionally left blank for alignment\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_untagged_comment_fails(self):
+        source = "# this function does important stuff\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 1
+        assert violations[0].rule == "TAG_COMMENT"
+        assert violations[0].severity == "warn"
+
+    def test_inline_untagged_comment_fails(self):
+        source = "x = 1  # increment counter\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 1
+        assert violations[0].rule == "TAG_COMMENT"
+
+    def test_shebang_passes(self):
+        source = "#!/usr/bin/env python3\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_type_ignore_passes(self):
+        source = "x = foo()  # type: ignore[assignment]\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_noqa_passes(self):
+        source = "import os  # noqa: F401\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_section_divider_passes(self):
+        source = "# -----------------------------------------------\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_blank_comment_passes(self):
+        source = "#\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_encoding_declaration_passes(self):
+        source = "# -*- coding: utf-8 -*-\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_grain_ignore_passes(self):
+        source = "# grain: ignore TAG_COMMENT\n"
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_docstring_comments_skipped(self):
+        source = '''\
+def foo():
+    """This is a docstring.
+    It has multiple lines.
+    # This looks like a comment but is inside a docstring.
+    """
+    pass
+'''
+        violations = list(self.check.check("test.py", source, CONFIG))
+        assert len(violations) == 0
+
+    def test_custom_tag_list(self):
+        source = "# CUSTOM: this uses a custom tag\n"
+        custom_config = {
+            **CONFIG,
+            "python": {**CONFIG["python"], "allowed_comment_tags": ["CUSTOM", "SPECIAL"]},
+        }
+        violations = list(self.check.check("test.py", source, custom_config))
+        assert len(violations) == 0
+
+    def test_custom_tag_list_rejects_default(self):
+        # With custom tags, the default TODO should NOT pass
+        source = "# TODO: this should fail with custom tags\n"
+        custom_config = {
+            **CONFIG,
+            "python": {**CONFIG["python"], "allowed_comment_tags": ["CUSTOM"]},
+        }
+        violations = list(self.check.check("test.py", source, custom_config))
+        assert len(violations) == 1
+        assert "TODO" in violations[0].message
+
+    def test_empty_file(self):
+        violations = list(self.check.check("test.py", "", CONFIG))
+        assert violations == []

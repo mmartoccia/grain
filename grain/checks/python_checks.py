@@ -323,6 +323,116 @@ class GenericVarname(BaseCheck):
 
 
 # ---------------------------------------------------------------------------
+# 7. TAG_COMMENT
+# ---------------------------------------------------------------------------
+
+_DEFAULT_COMMENT_TAGS = {
+    "TODO", "BUG", "FIX", "PERF", "NOTE", "HACK",
+    "FIXME", "XXX", "SAFETY", "REVIEW",
+}
+
+# Pattern for structured tag comments: # TAG: description  or  # (TAG): description
+_TAG_COMMENT_PATTERN = re.compile(
+    r"^#\s*\(?([A-Z][A-Z0-9_]*)\)?\s*:\s*\S",
+)
+
+# Lines to always skip (not real comments worth linting)
+_SKIP_COMMENT_PATTERN = re.compile(
+    r"^#\s*("
+    r"!|"                          # shebang
+    r"-{3,}|={3,}|#{3,}|"         # section dividers
+    r"type:\s*ignore|"            # type: ignore
+    r"noqa|"                      # noqa
+    r"grain:\s*ignore|"           # grain: ignore
+    r"-\*-.*-\*-"                 # encoding declarations
+    r")",
+    re.IGNORECASE,
+)
+
+
+class TagComment(BaseCheck):
+    rule = "TAG_COMMENT"
+
+    def check(self, path: str, source: str, config: dict) -> Iterator[Violation]:
+        allowed_tags = set(
+            config.get("python", {}).get("allowed_comment_tags", _DEFAULT_COMMENT_TAGS)
+        )
+        # Upper-case normalize
+        allowed_tags = {t.upper() for t in allowed_tags}
+
+        lines = source.splitlines()
+        in_multiline_string = False
+        string_char = None
+
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+
+            # Track triple-quoted strings (docstrings / multiline strings)
+            # Simple heuristic: count triple quotes on the line
+            for quote in ('"""', "'''"):
+                count = stripped.count(quote)
+                if count % 2 == 1:
+                    in_multiline_string = not in_multiline_string
+                    string_char = quote if in_multiline_string else None
+
+            if in_multiline_string:
+                continue
+
+            # Find inline comments: line starts with # or has # after code
+            comment_text = None
+            if stripped.startswith("#"):
+                comment_text = stripped
+            else:
+                # Try to find inline comment (# not inside a string)
+                # Use a simple approach: find # not preceded by odd quotes
+                try:
+                    tokens = list(tokenize.generate_tokens(io.StringIO(line).readline))
+                    for tok in tokens:
+                        if tok.type == tokenize.COMMENT:
+                            comment_text = tok.string
+                            break
+                except tokenize.TokenError:
+                    continue
+
+            if comment_text is None:
+                continue
+
+            # Strip the leading #
+            body = comment_text.lstrip("#")
+
+            # Skip blank comments (just #)
+            if not body.strip():
+                continue
+
+            # Skip special comments
+            if _SKIP_COMMENT_PATTERN.match(comment_text):
+                continue
+
+            # Check if comment matches a valid tag format
+            m = _TAG_COMMENT_PATTERN.match(comment_text)
+            if m:
+                tag = m.group(1).upper()
+                if tag in allowed_tags:
+                    continue
+                # Has tag format but unknown tag -- still flag it
+                yield Violation(
+                    path=path,
+                    line=i + 1,
+                    rule=self.rule,
+                    message=f'comment tag "{m.group(1)}" not in allowed tags: {sorted(allowed_tags)}',
+                    severity="warn",
+                )
+            else:
+                yield Violation(
+                    path=path,
+                    line=i + 1,
+                    rule=self.rule,
+                    message=f'untagged comment -- use # TAG: description (allowed: {sorted(allowed_tags)})',
+                    severity="warn",
+                )
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
@@ -333,4 +443,5 @@ PYTHON_CHECKS = [
     VagueTodo(),
     SingleImplAbc(),
     GenericVarname(),
+    TagComment(),
 ]
