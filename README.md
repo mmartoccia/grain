@@ -35,6 +35,7 @@ grain suppress FILE:LINE RULE  # add inline suppression comment
 | VAGUE_TODO | error | TODO without specific approach or reason |
 | SINGLE_IMPL_ABC | warn | ABC with exactly one concrete implementation |
 | GENERIC_VARNAME | error | function named with AI filler (process_data, etc.) |
+| TAG_COMMENT | warn | untagged comment -- requires `# TAG: description` format (opt-in) |
 
 ### Markdown
 
@@ -63,14 +64,27 @@ Create `.grain.toml` in your repo root:
 fail_on = ["OBVIOUS_COMMENT", "NAKED_EXCEPT", "HEDGE_WORD", "VAGUE_TODO", "VAGUE_COMMIT"]
 warn_only = ["RESTATED_DOCSTRING", "SINGLE_IMPL_ABC", "BULLET_PROSE"]
 ignore = []
+exclude = ["tests/*", "migrations/*"]
 
 [grain.python]
 generic_varnames = ["process_data", "handle_response", "get_result", "do_thing"]
+# allowed_comment_tags = ["TODO", "BUG", "FIX", "PERF", "NOTE", "HACK", "FIXME", "XXX", "SAFETY", "REVIEW"]
 
 [grain.markdown]
 hedge_words = ["robust", "seamless", "leverage", "cutting-edge", "powerful",
                "you might want to", "consider using", "it's worth noting", "note that"]
 ```
+
+## Opt-in rules
+
+Some rules are strict enough that they're off by default. Add them to `warn_only` or `fail_on` in `.grain.toml` to activate:
+
+```toml
+[grain]
+warn_only = ["TAG_COMMENT"]
+```
+
+**TAG_COMMENT** requires every comment to use a structured tag format (`# TODO: ...`, `# NOTE: ...`, etc.). Section headers, dividers, shebangs, `type: ignore`, and `noqa` are automatically skipped.
 
 ## Suppression
 
@@ -93,7 +107,7 @@ grain suppress src/main.py:42 NAKED_EXCEPT
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/mmartoccia/grain
-    rev: v0.1.1
+    rev: v0.1.3
     hooks:
       - id: grain
 ```
