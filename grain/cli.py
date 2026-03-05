@@ -109,7 +109,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     config = load_config()
     cfg_path = find_config()
 
-    print(f"grain v0.1.0")
+    print(f"grain v0.1.1")
     print(f"config: {cfg_path or '(defaults -- no .grain.toml found)'}")
     print()
     print(f"fail_on:   {', '.join(config['grain']['fail_on']) or '(none)'}")

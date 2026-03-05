@@ -9,7 +9,7 @@ AI code has tells. `grain` flags them so a human can decide whether to keep, rew
 ## Quick start
 
 ```bash
-pip install grain        # from PyPI (coming soon)
+pip install grain-lint   # from PyPI
 pip install -e .         # from source
 ```
 
@@ -93,7 +93,7 @@ grain suppress src/main.py:42 NAKED_EXCEPT
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/mmartoccia/grain
-    rev: v0.1.0
+    rev: v0.1.1
     hooks:
       - id: grain
 ```
