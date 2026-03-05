@@ -33,6 +33,7 @@ DEFAULTS: dict[str, Any] = {
         ],
         "ignore": [],
         "exclude": [],
+        "custom_rules": [],
     },
     "python": {
         "generic_varnames": [
@@ -99,6 +100,9 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
         for key in ("fail_on", "warn_only", "ignore", "exclude"):
             if key in grain_section:
                 config["grain"][key] = grain_section[key]
+        # Parse [[grain.custom_rules]] -- array of tables in TOML
+        if "custom_rules" in grain_section:
+            config["grain"]["custom_rules"] = grain_section["custom_rules"]
 
     # Merge python section (nested under grain.python in TOML)
     py_section = raw.get("grain", {}).get("python", raw.get("python", {}))

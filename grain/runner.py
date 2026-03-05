@@ -12,6 +12,7 @@ from grain.checks.base import Violation
 from grain.checks.python_checks import PYTHON_CHECKS, OPT_IN_PYTHON_CHECKS
 from grain.checks.markdown_checks import MARKDOWN_CHECKS
 from grain.checks.commit_checks import COMMIT_CHECKS
+from grain.checks.custom_checks import load_custom_rules
 from grain.config import load_config
 
 
@@ -78,6 +79,8 @@ def run_checks(
         rule: check for rule, check in OPT_IN_PYTHON_CHECKS.items()
         if rule in fail_on or rule in warn_only
     }
+    # Load custom rules once
+    custom_rules = load_custom_rules(config)
 
     for filepath in files:
         if any(fnmatch.fnmatch(filepath, pat) for pat in exclude_patterns):
@@ -109,6 +112,23 @@ def run_checks(
                     continue
                 if _should_ignore(v.rule, v.line, source):
                     continue
+                # Override severity from config
+                if v.rule in fail_on:
+                    v.severity = "error"
+                elif v.rule in warn_only:
+                    v.severity = "warn"
+                violations.append(v)
+
+        # Run custom rules that match this file
+        for custom in custom_rules:
+            if custom.rule in ignore_rules:
+                continue
+            if not custom.matches_file(filepath):
+                continue
+            for v in custom.check(str(path), source, config):
+                if v.rule in ignore_rules:
+                    continue
+                # Custom checks handle grain:ignore internally
                 # Override severity from config
                 if v.rule in fail_on:
                     v.severity = "error"

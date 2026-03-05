@@ -75,6 +75,45 @@ hedge_words = ["robust", "seamless", "leverage", "cutting-edge", "powerful",
                "you might want to", "consider using", "it's worth noting", "note that"]
 ```
 
+## Custom Rules
+
+Define your own pattern-matching rules in `.grain.toml`. Each custom rule has a name, a regex pattern, a file glob, a message, and an optional severity. grain evaluates them alongside built-in rules.
+
+```toml
+[[grain.custom_rules]]
+name = "CONST_SETTING"
+pattern = '^\s*[A-Z_]{2,}\s*=\s*\d+'
+files = "*.py"
+message = "top-level constant assignment -- use config or env vars"
+severity = "warn"
+
+[[grain.custom_rules]]
+name = "PRINT_DEBUG"
+pattern = '^\s*print\s*\('
+files = "*.py"
+message = "print() call -- use logging instead"
+severity = "error"
+
+[[grain.custom_rules]]
+name = "FIXME_DEADLINE"
+pattern = 'FIXME(?!.*\d{4}-\d{2}-\d{2})'
+files = "*.py"
+message = "FIXME without a deadline date (YYYY-MM-DD)"
+severity = "warn"
+```
+
+**Fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | yes | Uppercase + underscores (e.g. `MY_RULE`) |
+| `pattern` | yes | Python regex, matched per-line |
+| `files` | yes | File glob (e.g. `*.py`, `*.md`) |
+| `message` | yes | Human-readable violation message |
+| `severity` | no | `"warn"` (default) or `"error"` |
+
+Custom rule names work with `ignore`, `fail_on`, and `warn_only` just like built-in rules. Invalid rules (bad regex, missing fields) are skipped with a warning.
+
 ## Opt-in rules
 
 Some rules are strict enough that they're off by default. Add them to `warn_only` or `fail_on` in `.grain.toml` to activate:
@@ -107,7 +146,7 @@ grain suppress src/main.py:42 NAKED_EXCEPT
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/mmartoccia/grain
-    rev: v0.1.3
+    rev: v0.2.0
     hooks:
       - id: grain
 ```
