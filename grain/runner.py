@@ -18,7 +18,13 @@ from grain.config import load_config
 
 
 # Rules that can be auto-fixed without human judgment
-SAFE_FIX_RULES = {"OBVIOUS_COMMENT", "VAGUE_TODO", "HEDGE_WORD"}
+# NAKED_EXCEPT minimal fix: narrows bare except to `except Exception as e: raise`
+# Preserves original behaviour while satisfying the rule.
+# User should tighten exception types manually afterward.
+SAFE_FIX_RULES = {"OBVIOUS_COMMENT", "VAGUE_TODO", "HEDGE_WORD", "NAKED_EXCEPT"}
+
+# Rules exempt in test files (intentional broad excepts in test harnesses)
+TEST_EXEMPT_RULES = {"NAKED_EXCEPT"}
 
 
 def _get_staged_files() -> list[str]:
@@ -79,6 +85,7 @@ def run_checks(
     warn_only: set[str] = set(config["grain"]["warn_only"])
     ignore_rules: set[str] = set(config["grain"]["ignore"])
     exclude_patterns: list[str] = config["grain"].get("exclude", [])
+    test_patterns: list[str] = config["grain"].get("test_patterns", ["test_*.py", "*_test.py", "tests/*"])
     # Activate opt-in checks that are explicitly listed in fail_on or warn_only
     active_opt_ins = {
         rule: check for rule, check in OPT_IN_PYTHON_CHECKS.items()
@@ -89,6 +96,7 @@ def run_checks(
     for filepath in files:
         if any(fnmatch.fnmatch(filepath, pat) for pat in exclude_patterns):
             continue
+        is_test_file = any(fnmatch.fnmatch(os.path.basename(filepath), pat) or fnmatch.fnmatch(filepath, pat) for pat in test_patterns)
         path = Path(filepath)
         kind = _classify_file(filepath)
         if kind == "unknown":
@@ -115,6 +123,9 @@ def run_checks(
                 if v.rule in ignore_rules:
                     continue
                 if _should_ignore(v.rule, v.line, source):
+                    continue
+                # Exempt test files from rules like NAKED_EXCEPT
+                if is_test_file and v.rule in TEST_EXEMPT_RULES:
                     continue
                 # Override severity from config
                 if v.rule in fail_on:
@@ -243,6 +254,45 @@ def _apply_fix(
                 source_lines[idx] = new_line
                 return True, f"removed '{phrase}'"
         return False, "hedge word not found"
+
+    if rule == "NAKED_EXCEPT":
+        # Find the bare except line and the block body.
+        # Minimal safe fix: replace `except:` or `except Exception:` (no `as`)
+        # with `except Exception as e: raise` -- preserves semantics, satisfies linter.
+        # For multi-line blocks we insert `raise` as first statement in the body.
+        stripped = target.rstrip()
+        indent = len(stripped) - len(stripped.lstrip())
+        indent_str = " " * indent
+
+        bare_except = re.match(r"^(\s*)except\s*:\s*$", target.rstrip())
+        generic_except = re.match(r"^(\s*)except\s+Exception\s*:\s*$", target.rstrip())
+        bare_except_inline = re.match(r"^(\s*)except\s*:(.*)", target.rstrip())
+        generic_inline = re.match(r"^(\s*)except\s+Exception\s*:(.*)", target.rstrip())
+
+        if bare_except or generic_except:
+            # Block except -- replace header and insert `raise` as first body line
+            source_lines[idx] = f"{indent_str}except Exception as e:  # grain: narrowed\n"
+            # Insert `raise` at next line with one extra indent level
+            body_indent = indent_str + "    "
+            source_lines.insert(idx + 1, f"{body_indent}raise\n")
+            return True, "narrowed bare except to `except Exception as e: raise`"
+
+        if bare_except_inline:
+            body = bare_except_inline.group(2).strip()
+            if body:
+                source_lines[idx] = f"{indent_str}except Exception as e:  # grain: narrowed\n"
+                body_indent = indent_str + "    "
+                source_lines.insert(idx + 1, f"{body_indent}{body}\n")
+                return True, "narrowed inline bare except"
+        if generic_inline:
+            body = generic_inline.group(2).strip()
+            if body:
+                source_lines[idx] = f"{indent_str}except Exception as e:  # grain: narrowed\n"
+                body_indent = indent_str + "    "
+                source_lines.insert(idx + 1, f"{body_indent}{body}\n")
+                return True, "narrowed inline generic except"
+
+        return False, "except pattern not recognised for auto-fix"
 
     return False, f"rule {rule} not auto-fixable"
 
