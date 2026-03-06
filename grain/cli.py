@@ -13,6 +13,7 @@ from grain.runner import (
     run_checks,
     format_violations,
     determine_exit_code,
+    apply_fixes,
     _get_staged_files,
     _get_all_files,
 )
@@ -35,13 +36,21 @@ def cmd_check(args: argparse.Namespace) -> int:
             print("grain: no staged files to check (use --all to check everything)")
             return 0
 
-    # Filter by extension
     files = [f for f in files if f.endswith((".py", ".md", ".markdown"))]
     if not files:
         print("grain: no .py or .md files to check")
         return 0
 
     violations = run_checks(files, config)
+
+    if args.fix and violations:
+        fix_messages, remaining = apply_fixes(files, violations, config)
+        for msg in fix_messages:
+            print(msg)
+        if fix_messages and remaining:
+            print()
+        violations = remaining
+
     output = format_violations(violations)
     print(output, end="")
     return determine_exit_code(violations)
@@ -173,6 +182,7 @@ def main() -> None:
     p_check = sub.add_parser("check", help="Check files for slop")
     p_check.add_argument("files", nargs="*", help="Files to check (default: staged files)")
     p_check.add_argument("--all", action="store_true", help="Check all .py and .md files in repo")
+    p_check.add_argument("--fix", action="store_true", help="Auto-fix safe violations in place")
 
     # commit-msg
     p_cmsg = sub.add_parser("commit-msg", help="Check a commit message file")

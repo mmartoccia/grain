@@ -5,12 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>grain — anti-slop linter for AI-assisted codebases</title>
 <style>
-  :root { --bg: #0a0a0f; --fg: #c8c8d0; --accent: #6df; --dim: #555; --code-bg: #14141f; --warn: #f90; }
+  :root { --bg: #0a0a0f; --fg: #c8c8d0; --accent: #6df; --dim: #555; --code-bg: #14141f; --warn: #f90; --green: #6f6; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: var(--bg); color: var(--fg); font: 16px/1.6 'SF Mono', 'Fira Code', monospace; max-width: 680px; margin: 0 auto; padding: 40px 20px; }
   h1 { color: var(--accent); font-size: 2em; margin-bottom: 4px; }
   .tagline { color: var(--dim); margin-bottom: 32px; }
+  .version { color: var(--green); font-size: 0.75em; vertical-align: super; }
   h2 { color: var(--warn); font-size: 1.1em; margin: 28px 0 12px; text-transform: uppercase; letter-spacing: 1px; }
+  h3 { color: var(--accent); font-size: 0.95em; margin: 20px 0 8px; }
+  p { margin: 8px 0; }
   pre { background: var(--code-bg); padding: 16px; border-radius: 6px; overflow-x: auto; margin: 12px 0; border-left: 3px solid var(--accent); }
   code { color: var(--accent); font-size: 0.9em; }
   .install code { font-size: 1.1em; }
@@ -19,47 +22,117 @@
   td { padding: 6px 8px; border-bottom: 1px solid #1a1a2a; font-size: 0.85em; }
   td:first-child { color: var(--warn); white-space: nowrap; }
   a { color: var(--accent); }
+  .new { color: var(--green); font-size: 0.7em; vertical-align: super; margin-left: 4px; }
   .links { margin-top: 32px; }
   .links a { display: inline-block; margin-right: 20px; padding: 8px 16px; border: 1px solid var(--accent); border-radius: 4px; text-decoration: none; }
   .links a:hover { background: var(--accent); color: var(--bg); }
+  .faq-q { color: var(--accent); font-weight: bold; margin-top: 16px; }
+  .faq-a { margin-bottom: 12px; }
+  .comparison { border-left: 3px solid var(--warn); padding: 12px 16px; margin: 12px 0; background: #14141f; border-radius: 0 6px 6px 0; }
+  .comparison p { margin: 4px 0; }
   .footer { margin-top: 48px; color: var(--dim); font-size: 0.8em; }
 </style>
 </head>
 <body>
 
-<h1>grain</h1>
+<h1>grain <span class="version">v0.3.0</span></h1>
 <p class="tagline">Anti-slop linter for AI-assisted codebases.</p>
 
-<p>AI code has tells. <code>grain</code> flags them so a human can decide whether to keep, rewrite, or suppress. It does not auto-fix -- fixing requires judgment.</p>
+<p>AI code has tells. <code>grain</code> flags them so a human can decide whether to keep, rewrite, or suppress.</p>
 
 <h2>Install</h2>
 <pre class="install"><code>pip install grain-lint</code></pre>
 
 <h2>Usage</h2>
-<pre><code>grain check [files...]      # check specific files
-grain check --all           # check entire repo
-grain install               # install git hooks
-grain status                # show config
-grain suppress FILE:LINE RULE</code></pre>
+<pre><code>grain check [files...]         # check specific files
+grain check --all              # check entire repo
+grain check --fix<span class="new">NEW</span>             # auto-fix safe rules
+grain install                  # install git hooks
+grain status                   # show config
+grain suppress FILE:LINE RULE  # add inline suppression</code></pre>
 
 <h2>What it catches</h2>
 
+<h3>Python</h3>
+<table>
+<tr><th>Rule</th><th>What</th><th>Fix</th></tr>
+<tr><td>OBVIOUS_COMMENT</td><td>Comment restates the following line</td><td>auto</td></tr>
+<tr><td>NAKED_EXCEPT</td><td>Broad except with no re-raise</td><td>manual</td></tr>
+<tr><td>RESTATED_DOCSTRING</td><td>Docstring just expands the function name</td><td>manual</td></tr>
+<tr><td>VAGUE_TODO</td><td>TODO without specific approach</td><td>auto</td></tr>
+<tr><td>SINGLE_IMPL_ABC</td><td>ABC with one concrete implementation</td><td>manual</td></tr>
+<tr><td>GENERIC_VARNAME</td><td>AI filler names (process_data, handle_response)</td><td>manual</td></tr>
+<tr><td>TAG_COMMENT</td><td>Untagged comment (opt-in)</td><td>manual</td></tr>
+</table>
+
+<h3>Markdown</h3>
+<table>
+<tr><th>Rule</th><th>What</th><th>Fix</th></tr>
+<tr><td>HEDGE_WORD</td><td>AI filler words in docs</td><td>auto</td></tr>
+<tr><td>THANKS_OPENER</td><td>README opens with "Thanks for contributing"</td><td>manual</td></tr>
+<tr><td>OBVIOUS_HEADER</td><td>Header restated in following paragraph</td><td>manual</td></tr>
+<tr><td>BULLET_PROSE</td><td>Short bullet list that reads better as prose</td><td>manual</td></tr>
+<tr><td>TABLE_OVERKILL</td><td>Table with 1 row or constant column</td><td>manual</td></tr>
+</table>
+
+<h3>Commit messages</h3>
 <table>
 <tr><th>Rule</th><th>What</th></tr>
-<tr><td>OBVIOUS_COMMENT</td><td>Comment restates the following line</td></tr>
-<tr><td>NAKED_EXCEPT</td><td>Broad except with no re-raise</td></tr>
-<tr><td>RESTATED_DOCSTRING</td><td>Docstring just expands the function name</td></tr>
-<tr><td>VAGUE_TODO</td><td>TODO without specific approach</td></tr>
-<tr><td>GENERIC_VARNAME</td><td>AI filler names (process_data, handle_response)</td></tr>
-<tr><td>HEDGE_WORD</td><td>AI prose ("robust", "seamless", "leverage")</td></tr>
-<tr><td>OBVIOUS_HEADER</td><td>Header content restated in following paragraph</td></tr>
 <tr><td>VAGUE_COMMIT</td><td>Generic commit message (update, fix bug, wip)</td></tr>
 <tr><td>AND_COMMIT</td><td>Commit does two things -- split it</td></tr>
+<tr><td>NO_CONTEXT</td><td>fix/feat with no description of what changed</td></tr>
 </table>
+
+<h2>Auto-fix<span class="new">NEW</span></h2>
+<pre><code>grain check --fix</code></pre>
+<p>Safe rules are fixed in-place. Rules that require judgment are reported but untouched.</p>
+<pre><code>FIXED src/main.py:42 OBVIOUS_COMMENT -- removed comment
+FIXED src/main.py:87 VAGUE_TODO -- annotated
+src/main.py:103  [FAIL] NAKED_EXCEPT  broad except with no re-raise</code></pre>
+<p>Exit 0 = clean after fixes. Exit 1 = non-fixable violations remain.</p>
+
+<h2>Why not ruff / pylint / semgrep?</h2>
+<div class="comparison">
+<p>Those tools check syntax, style, types, and known bug patterns. They're essential. grain doesn't replace them.</p>
+<p>grain catches <strong>behavioral patterns specific to AI code generation</strong> that traditional linters miss: silent exception swallowing (not just bare except, but handlers that catch-and-forget), docstring padding, filler words in docs, echo comments, and vague TODOs.</p>
+<p>semgrep can match custom patterns, but requires YAML rule authoring. grain ships these rules built-in and adds <code>.grain.toml</code> for custom patterns without a new DSL.</p>
+<p><strong>Run grain alongside ruff/pylint. They solve different problems.</strong></p>
+</div>
+
+<h2>Custom rules</h2>
+<pre><code># .grain.toml
+[[grain.custom_rules]]
+name = "PRINT_DEBUG"
+pattern = '^\s*print\s*\('
+files = "*.py"
+message = "print() call -- use logging instead"
+severity = "error"</code></pre>
+<p>Simple regex + file glob. No YAML, no DSL. Works with <code>ignore</code>, <code>fail_on</code>, and <code>warn_only</code> like built-in rules.</p>
 
 <h2>Suppress when intentional</h2>
 <pre><code>except Exception as e:  # grain: ignore NAKED_EXCEPT
     pass  # intentional top-level catch</code></pre>
+
+<h2>pre-commit</h2>
+<pre><code># .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/mmartoccia/grain
+    rev: v0.3.0
+    hooks:
+      - id: grain</code></pre>
+
+<h2>FAQ</h2>
+<p class="faq-q">False positive rate?</p>
+<p class="faq-a">NAKED_EXCEPT and VAGUE_TODO: near-zero. OBVIOUS_COMMENT and RESTATED_DOCSTRING: occasional coincidental overlap. Use <code># grain: ignore RULE_NAME</code> for those.</p>
+
+<p class="faq-q">Does --fix touch unsafe rules?</p>
+<p class="faq-a">No. Only OBVIOUS_COMMENT (deletes line), VAGUE_TODO (annotates), and HEDGE_WORD (removes word). Everything else requires a human.</p>
+
+<p class="faq-q">Can I write custom rules without learning semgrep?</p>
+<p class="faq-a">Yes. Regex + file glob in <code>.grain.toml</code>. See Custom Rules above.</p>
+
+<p class="faq-q">Python only?</p>
+<p class="faq-a">For now. The architecture supports language-specific check modules. PRs welcome.</p>
 
 <div class="links">
   <a href="https://github.com/mmartoccia/grain">GitHub</a>

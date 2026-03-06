@@ -4,7 +4,23 @@ Anti-slop linter for AI-assisted codebases. Detects AI-generated code and docume
 
 ## What it does
 
-AI code has tells. `grain` flags them so a human can decide whether to keep, rewrite, or suppress. It does not auto-fix -- fixing requires judgment.
+AI code has tells. `grain` flags them so a human can decide whether to keep, rewrite, or suppress.
+
+## Why not ruff / pylint / semgrep?
+
+Those tools check syntax, style, types, and known bug patterns. They're essential. grain doesn't replace them.
+
+grain catches **behavioral patterns specific to AI code generation** that traditional linters miss:
+
+- **Silent exception swallowing** -- AI wraps everything in try/except with no re-raise. ruff has `E722` for bare except, but doesn't check whether the handler re-raises or just logs and moves on.
+- **Docstring padding** -- AI restates the function name as a sentence and calls it documentation. No existing linter flags this.
+- **Hedge words** -- filler words in docs that signal AI-generated prose saying nothing. No linter checks for this.
+- **Echo comments** -- comments that restate the next line of code. AI adds these reflexively. Existing linters check comment *style*, not *content*.
+- **Vague TODOs** -- "implement this" with no approach. Traditional linters flag missing TODOs, not empty ones.
+
+semgrep can do custom pattern matching, but requires writing YAML rules per pattern. grain ships with these rules built-in and adds `.grain.toml` for custom patterns without learning a new DSL.
+
+Run grain alongside ruff/pylint. They solve different problems.
 
 ## Quick start
 
@@ -18,6 +34,7 @@ pip install -e .         # from source
 ```bash
 grain check [files...]      # check specific files
 grain check --all           # check entire repo
+grain check --fix           # auto-fix safe violations in place
 grain install               # install git hooks into .git/hooks/
 grain status                # show current config and enabled checks
 grain suppress FILE:LINE RULE  # add inline suppression comment
@@ -146,10 +163,27 @@ grain suppress src/main.py:42 NAKED_EXCEPT
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/mmartoccia/grain
-    rev: v0.2.0
+    rev: v0.3.0
     hooks:
       - id: grain
 ```
+
+## FAQ
+
+**What's the false positive rate?**
+Depends on the rule. NAKED_EXCEPT and VAGUE_TODO have near-zero false positives. OBVIOUS_COMMENT and RESTATED_DOCSTRING occasionally flag legitimate comments where overlap is coincidental. Use `# grain: ignore RULE_NAME` for those cases, or adjust thresholds in the source.
+
+**Does grain support auto-fix?**
+Yes. `grain check --fix` auto-fixes safe rules (OBVIOUS_COMMENT removal, VAGUE_TODO annotation). Rules requiring judgment (NAKED_EXCEPT, RESTATED_DOCSTRING) are reported but not auto-fixed.
+
+**Can I write custom rules without learning semgrep YAML?**
+Yes. Custom rules use simple regex + file glob in `.grain.toml`. See the Custom Rules section above.
+
+**Does grain work with pre-commit?**
+Yes. See the pre-commit section. The `--fix` flag is not recommended in pre-commit hooks (fixes should be reviewed, not auto-applied in CI).
+
+**Python only?**
+For now. The architecture supports adding language-specific check modules. PRs welcome.
 
 ## Output format
 

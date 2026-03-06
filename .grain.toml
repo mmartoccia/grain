@@ -1,0 +1,5 @@
+[grain]
+fail_on = ["OBVIOUS_COMMENT", "NAKED_EXCEPT", "HEDGE_WORD", "VAGUE_TODO", "VAGUE_COMMIT", "GENERIC_VARNAME"]
+warn_only = ["RESTATED_DOCSTRING", "SINGLE_IMPL_ABC", "BULLET_PROSE"]
+ignore = []
+exclude = ["tests/*", "dist/*", "*.egg-info/*"]
