@@ -229,7 +229,8 @@ class TestSafeFixRules:
         assert "HEDGE_WORD" in SAFE_FIX_RULES
 
     def test_unsafe_rules_excluded(self):
-        assert "NAKED_EXCEPT" not in SAFE_FIX_RULES
+        # NAKED_EXCEPT is now auto-fixable (minimal safe fix: narrow to Exception as e + raise)
+        assert "NAKED_EXCEPT" in SAFE_FIX_RULES
         assert "RESTATED_DOCSTRING" not in SAFE_FIX_RULES
         assert "SINGLE_IMPL_ABC" not in SAFE_FIX_RULES
         assert "GENERIC_VARNAME" not in SAFE_FIX_RULES

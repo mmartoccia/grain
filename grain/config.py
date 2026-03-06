@@ -33,6 +33,7 @@ DEFAULTS: dict[str, Any] = {
         ],
         "ignore": [],
         "exclude": [],
+        "test_patterns": ["test_*.py", "*_test.py", "tests/*"],
         "custom_rules": [],
     },
     "python": {
@@ -94,10 +95,22 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
     with open(path, "rb") as f:
         raw = tomllib.load(f)
 
+    # Warn on unrecognised top-level TOML sections before merging, so users get
+    # immediate feedback when they write e.g. [ignore] instead of [grain].exclude
+    known_top = {"grain", "python", "markdown"}
+    for section in raw:
+        if section not in known_top:
+            import sys as _sys
+            print(
+                f"grain: warning: unknown config section [{section}] in .grain.toml "
+                f"-- did you mean [grain] with key '{section}'?",
+                file=_sys.stderr,
+            )
+
     # Merge grain section
     if "grain" in raw:
         grain_section = raw["grain"]
-        for key in ("fail_on", "warn_only", "ignore", "exclude"):
+        for key in ("fail_on", "warn_only", "ignore", "exclude", "test_patterns"):
             if key in grain_section:
                 config["grain"][key] = grain_section[key]
         # Parse [[grain.custom_rules]] -- array of tables in TOML

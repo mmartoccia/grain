@@ -124,6 +124,13 @@ def cmd_status(args: argparse.Namespace) -> int:
     print(f"fail_on:   {', '.join(config['grain']['fail_on']) or '(none)'}")
     print(f"warn_only: {', '.join(config['grain']['warn_only']) or '(none)'}")
     print(f"ignore:    {', '.join(config['grain']['ignore']) or '(none)'}")
+    exclude = config["grain"].get("exclude", [])
+    if exclude:
+        print(f"exclude:   {', '.join(exclude)}")
+    else:
+        print(f"exclude:   (none)")
+    test_patterns = config["grain"].get("test_patterns", ["test_*.py", "*_test.py", "tests/*"])
+    print(f"test_patterns: {', '.join(test_patterns)}")
     print()
     print("Python generic varnames:", ", ".join(config["python"]["generic_varnames"]))
     print("Markdown hedge words:", ", ".join(config["markdown"]["hedge_words"]))
@@ -168,6 +175,63 @@ def cmd_suppress(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Subcommand: init
+# ---------------------------------------------------------------------------
+
+_GENERATED_DIR_MARKERS = [
+    # Reports / scraped content
+    ("reports", "*/reports/*"),
+    ("posts", "*/posts/*"),
+    ("papers", "*/papers/*"),
+    ("transcripts", "*/transcripts/*"),
+    ("briefings", "briefings/*"),
+    # Test directories
+    ("tests", "tests/*"),
+    # Common build/cache dirs
+    ("dist", "dist/*"),
+    ("build", "build/*"),
+    ("node_modules", "node_modules/*"),
+    (".venv", ".venv/*"),
+]
+
+def cmd_init(args: argparse.Namespace) -> int:
+    dest = Path(".grain.toml")
+    if dest.exists():
+        print("grain: .grain.toml already exists -- not overwriting. Edit it manually.")
+        return 1
+
+    # Auto-detect generated directories present in repo
+    detected_excludes: list[str] = []
+    for dirname, pattern in _GENERATED_DIR_MARKERS:
+        if any(Path(".").rglob(dirname)):
+            detected_excludes.append(f'  "{pattern}",')
+
+    exclude_block = "\n".join(detected_excludes) if detected_excludes else '  # "generated/*",'
+
+    toml = f"""\
+[grain]
+fail_on   = ["OBVIOUS_COMMENT", "NAKED_EXCEPT", "HEDGE_WORD", "VAGUE_TODO", "VAGUE_COMMIT"]
+warn_only = ["RESTATED_DOCSTRING", "SINGLE_IMPL_ABC", "BULLET_PROSE"]
+
+# Paths to skip entirely (fnmatch patterns, relative to repo root).
+# grain init auto-detected the following directories:
+exclude = [
+{exclude_block}
+]
+
+# Test file patterns -- NAKED_EXCEPT is exempt in these files.
+# test_patterns = ["test_*.py", "*_test.py", "tests/*"]
+"""
+
+    dest.write_text(toml, encoding="utf-8")
+    print(f"grain: created .grain.toml")
+    if detected_excludes:
+        print(f"grain: auto-detected {len(detected_excludes)} generated directories -- review exclude list")
+    print("grain: run `grain status` to verify config")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -195,6 +259,9 @@ def main() -> None:
     # status
     sub.add_parser("status", help="Show current config and enabled checks")
 
+    # init
+    sub.add_parser("init", help="Scaffold a .grain.toml for this repo")
+
     # suppress
     p_sup = sub.add_parser("suppress", help="Add inline suppression for a rule at a location")
     p_sup.add_argument("location", help="FILE:LINE")
@@ -211,6 +278,7 @@ def main() -> None:
         "commit-msg": cmd_commit_msg,
         "install": cmd_install,
         "status": cmd_status,
+        "init": cmd_init,
         "suppress": cmd_suppress,
     }
 
