@@ -59,6 +59,7 @@ grain suppress FILE:LINE RULE  # add inline suppression</code></pre>
 <tr><td>OBVIOUS_COMMENT</td><td>Comment restates the following line</td><td>auto</td></tr>
 <tr><td>NAKED_EXCEPT</td><td>Broad except with no re-raise</td><td>manual</td></tr>
 <tr><td>RESTATED_DOCSTRING</td><td>Docstring just expands the function name</td><td>manual</td></tr>
+<tr><td>DOCSTRING_HEDGE_WORD</td><td>AI filler words in docstrings (opt-in)</td><td>auto</td></tr>
 <tr><td>VAGUE_TODO</td><td>TODO without specific approach</td><td>auto</td></tr>
 <tr><td>SINGLE_IMPL_ABC</td><td>ABC with one concrete implementation</td><td>manual</td></tr>
 <tr><td>GENERIC_VARNAME</td><td>AI filler names (process_data, handle_response)</td><td>manual</td></tr>
@@ -68,7 +69,7 @@ grain suppress FILE:LINE RULE  # add inline suppression</code></pre>
 <h3>Markdown</h3>
 <table>
 <tr><th>Rule</th><th>What</th><th>Fix</th></tr>
-<tr><td>HEDGE_WORD</td><td>AI filler words in docs</td><td>auto</td></tr>
+<tr><td>HEDGE_WORD</td><td>AI filler words in Markdown docs</td><td>auto</td></tr>
 <tr><td>THANKS_OPENER</td><td>README opens with "Thanks for contributing"</td><td>manual</td></tr>
 <tr><td>OBVIOUS_HEADER</td><td>Header restated in following paragraph</td><td>manual</td></tr>
 <tr><td>BULLET_PROSE</td><td>Short bullet list that reads better as prose</td><td>manual</td></tr>
@@ -126,7 +127,7 @@ repos:
 <p class="faq-a">NAKED_EXCEPT and VAGUE_TODO: near-zero. OBVIOUS_COMMENT and RESTATED_DOCSTRING: occasional coincidental overlap. Use <code># grain: ignore RULE_NAME</code> for those.</p>
 
 <p class="faq-q">Does --fix touch unsafe rules?</p>
-<p class="faq-a">No. Only OBVIOUS_COMMENT (deletes line), VAGUE_TODO (annotates), and HEDGE_WORD (removes word). Everything else requires a human.</p>
+<p class="faq-a">No. Only OBVIOUS_COMMENT (deletes line), VAGUE_TODO (annotates), HEDGE_WORD, and DOCSTRING_HEDGE_WORD (remove word). Everything else requires a human.</p>
 
 <p class="faq-q">Can I write custom rules without learning semgrep?</p>
 <p class="faq-a">Yes. Regex + file glob in <code>.grain.toml</code>. See Custom Rules above.</p>

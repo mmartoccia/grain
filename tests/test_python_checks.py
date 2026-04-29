@@ -1,13 +1,16 @@
 """Tests for Python slop checks."""
 import sys
 import os
+import tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
+from grain.runner import run_checks
 from grain.checks.python_checks import (
     ObviousComment,
     NakedExcept,
     RestatedDocstring,
+    DocstringHedgeWord,
     VagueTodo,
     SingleImplAbc,
     GenericVarname,
@@ -18,6 +21,13 @@ CONFIG = {
     "grain": {"fail_on": [], "warn_only": [], "ignore": []},
     "python": {"generic_varnames": ["process_data", "handle_response", "get_result", "do_thing"]},
     "markdown": {"hedge_words": []},
+}
+
+HEDGE_CONFIG = {
+    **CONFIG,
+    "markdown": {
+        "hedge_words": ["robust", "seamless", "leverage", "consider using", "bespoke"],
+    },
 }
 
 
@@ -176,6 +186,254 @@ def get_data():
     def test_empty_file(self):
         violations = list(self.check.check("test.py", "", CONFIG))
         assert violations == []
+
+
+# ---------------------------------------------------------------------------
+# DOCSTRING_HEDGE_WORD
+# ---------------------------------------------------------------------------
+
+class TestDocstringHedgeWord:
+    check = DocstringHedgeWord()
+
+    def test_fires_on_module_docstring(self):
+        source = '''\
+"""A robust parser for config files."""
+'''
+        violations = list(self.check.check("test.py", source, HEDGE_CONFIG))
+        assert len(violations) == 1
+        assert violations[0].rule == "DOCSTRING_HEDGE_WORD"
+        assert violations[0].line == 1
+        assert violations[0].message == '"robust" signals AI-generated prose'
+
+    def test_fires_on_class_docstring(self):
+        source = '''\
+class Client:
+    """
+    A seamless wrapper around the transport.
+    """
+    pass
+'''
+        violations = list(self.check.check("test.py", source, HEDGE_CONFIG))
+        assert len(violations) == 1
+        assert violations[0].rule == "DOCSTRING_HEDGE_WORD"
+        assert violations[0].line == 3
+
+    def test_fires_on_function_docstring(self):
+        source = '''\
+def fetch_config():
+    """Use leverage to describe this function."""
+    return {}
+'''
+        violations = list(self.check.check("test.py", source, HEDGE_CONFIG))
+        assert len(violations) == 1
+        assert violations[0].rule == "DOCSTRING_HEDGE_WORD"
+        assert violations[0].line == 2
+
+    def test_fires_on_async_function_docstring(self):
+        source = '''\
+async def fetch_config():
+    """Consider using this async helper."""
+    return {}
+'''
+        violations = list(self.check.check("test.py", source, HEDGE_CONFIG))
+        assert len(violations) == 1
+        assert violations[0].rule == "DOCSTRING_HEDGE_WORD"
+        assert violations[0].line == 2
+
+    def test_uses_markdown_hedge_words_config(self):
+        source = '''\
+def fetch_config():
+    """A bespoke config reader."""
+    return {}
+'''
+        violations = list(self.check.check("test.py", source, HEDGE_CONFIG))
+        assert len(violations) == 1
+        assert violations[0].message == '"bespoke" signals AI-generated prose'
+
+    def test_uses_default_hedge_words_when_config_missing(self):
+        source = '''\
+def fetch_config():
+    """A world-class config reader."""
+    return {}
+'''
+        custom_config = {**CONFIG, "markdown": {}}
+        violations = list(self.check.check("test.py", source, custom_config))
+        assert len(violations) == 1
+        assert violations[0].message == '"world-class" signals AI-generated prose'
+
+    def test_passes_clean_docstring(self):
+        source = '''\
+def fetch_config():
+    """Read configuration from the repository root."""
+    return {}
+'''
+        violations = list(self.check.check("test.py", source, HEDGE_CONFIG))
+        assert len(violations) == 0
+
+    def test_does_not_scan_comments_or_non_docstring_strings(self):
+        source = '''\
+# robust comment
+TEXT = "robust module string"
+
+class Client:
+    label = "seamless class string"
+
+def fetch_config():
+    text = "leverage local string"
+    """consider using this later string expression"""
+    return text
+'''
+        violations = list(self.check.check("test.py", source, HEDGE_CONFIG))
+        assert violations == []
+
+    def test_syntax_error_file(self):
+        source = "def foo(:\n    pass\n"
+        violations = list(self.check.check("test.py", source, HEDGE_CONFIG))
+        assert violations == []
+
+    def test_in_opt_in_checks(self):
+        from grain.checks.python_checks import PYTHON_CHECKS, OPT_IN_PYTHON_CHECKS
+
+        default_rules = [c.rule for c in PYTHON_CHECKS]
+        assert "DOCSTRING_HEDGE_WORD" not in default_rules
+        assert "DOCSTRING_HEDGE_WORD" in OPT_IN_PYTHON_CHECKS
+
+    def test_runner_skips_docstring_rule_when_not_enabled(self):
+        source = '''\
+"""robust module docstring."""
+
+VALUE = "robust ordinary string"
+
+def example():
+    """robust function docstring."""
+    return "robust ordinary string"
+'''
+        custom_config = {
+            **HEDGE_CONFIG,
+            "grain": {"fail_on": ["HEDGE_WORD"], "warn_only": [], "ignore": []},
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(source)
+            f.flush()
+            path = f.name
+
+        try:
+            violations = run_checks([path], custom_config)
+            assert [v for v in violations if v.rule == "DOCSTRING_HEDGE_WORD"] == []
+        finally:
+            os.unlink(path)
+
+    def test_runner_can_warn_on_docstrings_while_markdown_rule_fails(self):
+        source = '''\
+def fetch_config():
+    """Read robust configuration from disk."""
+    return {}
+'''
+        custom_config = {
+            **HEDGE_CONFIG,
+            "grain": {
+                "fail_on": ["HEDGE_WORD"],
+                "warn_only": ["DOCSTRING_HEDGE_WORD"],
+                "ignore": [],
+            },
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(source)
+            f.flush()
+            path = f.name
+
+        try:
+            violations = run_checks([path], custom_config)
+            docstring = [v for v in violations if v.rule == "DOCSTRING_HEDGE_WORD"]
+            assert len(docstring) == 1
+            assert docstring[0].severity == "warn"
+        finally:
+            os.unlink(path)
+
+    def test_runner_can_fail_on_docstrings_while_markdown_rule_is_disabled(self):
+        source = '''\
+def fetch_config():
+    """Read robust configuration from disk."""
+    return "robust ordinary string"
+'''
+        custom_config = {
+            **HEDGE_CONFIG,
+            "grain": {
+                "fail_on": ["DOCSTRING_HEDGE_WORD"],
+                "warn_only": [],
+                "ignore": [],
+            },
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as py_file:
+            py_file.write(source)
+            py_file.flush()
+            py_path = py_file.name
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as md_file:
+            md_file.write("robust markdown prose\n")
+            md_file.flush()
+            md_path = md_file.name
+
+        try:
+            violations = run_checks([py_path, md_path], custom_config)
+            assert [v.rule for v in violations] == ["DOCSTRING_HEDGE_WORD"]
+            assert violations[0].severity == "error"
+        finally:
+            os.unlink(py_path)
+            os.unlink(md_path)
+
+    def test_runner_can_fail_on_docstrings_and_warn_on_markdown(self):
+        custom_config = {
+            **HEDGE_CONFIG,
+            "grain": {
+                "fail_on": ["DOCSTRING_HEDGE_WORD"],
+                "warn_only": ["HEDGE_WORD"],
+                "ignore": [],
+            },
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as py_file:
+            py_file.write('"""robust module docstring."""\n')
+            py_file.flush()
+            py_path = py_file.name
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as md_file:
+            md_file.write("robust markdown prose\n")
+            md_file.flush()
+            md_path = md_file.name
+
+        try:
+            violations = run_checks([py_path, md_path], custom_config)
+            by_rule = {v.rule: v for v in violations}
+            assert by_rule["DOCSTRING_HEDGE_WORD"].severity == "error"
+            assert by_rule["HEDGE_WORD"].severity == "warn"
+        finally:
+            os.unlink(py_path)
+            os.unlink(md_path)
+
+    def test_runner_can_fail_on_markdown_and_warn_on_docstrings(self):
+        custom_config = {
+            **HEDGE_CONFIG,
+            "grain": {
+                "fail_on": ["HEDGE_WORD"],
+                "warn_only": ["DOCSTRING_HEDGE_WORD"],
+                "ignore": [],
+            },
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as py_file:
+            py_file.write('"""robust module docstring."""\n')
+            py_file.flush()
+            py_path = py_file.name
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as md_file:
+            md_file.write("robust markdown prose\n")
+            md_file.flush()
+            md_path = md_file.name
+
+        try:
+            violations = run_checks([py_path, md_path], custom_config)
+            by_rule = {v.rule: v for v in violations}
+            assert by_rule["HEDGE_WORD"].severity == "error"
+            assert by_rule["DOCSTRING_HEDGE_WORD"].severity == "warn"
+        finally:
+            os.unlink(py_path)
+            os.unlink(md_path)
 
 
 # ---------------------------------------------------------------------------
