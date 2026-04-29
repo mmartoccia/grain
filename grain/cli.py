@@ -8,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from grain import __version__
 from grain.config import load_config, find_config
 from grain.runner import (
     run_checks,
@@ -124,7 +125,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     config = load_config()
     cfg_path = find_config()
 
-    print(f"grain v0.1.2")
+    print(f"grain v{__version__}")
     print(f"config: {cfg_path or '(defaults -- no .grain.toml found)'}")
     print()
     print(f"fail_on:   {', '.join(config['grain']['fail_on']) or '(none)'}")

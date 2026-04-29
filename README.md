@@ -217,7 +217,7 @@ grain suppress src/main.py:42 NAKED_EXCEPT
 ```yaml
 repos:
   - repo: https://github.com/mmartoccia/grain
-    rev: v0.3.0
+    rev: v0.3.1
     hooks:
       - id: grain
 ```
