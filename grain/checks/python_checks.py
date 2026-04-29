@@ -8,6 +8,7 @@ import io
 from typing import Iterator
 
 from grain.checks.base import BaseCheck, Violation
+from grain.checks.markdown_checks import _DEFAULT_HEDGE_WORDS
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -184,7 +185,57 @@ class RestatedDocstring(BaseCheck):
 
 
 # ---------------------------------------------------------------------------
-# 4. VAGUE_TODO
+# 4. DOCSTRING_HEDGE_WORD
+# ---------------------------------------------------------------------------
+
+class DocstringHedgeWord(BaseCheck):
+    rule = "DOCSTRING_HEDGE_WORD"
+
+    def check(self, path: str, source: str, config: dict) -> Iterator[Violation]:
+        hedge_words = config.get("markdown", {}).get(
+            "hedge_words",
+            _DEFAULT_HEDGE_WORDS,
+        )
+
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            return
+
+        for node in ast.walk(tree):
+            if not isinstance(
+                node,
+                (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef),
+            ):
+                continue
+            if not node.body:
+                continue
+
+            first = node.body[0]
+            if not isinstance(first, ast.Expr):
+                continue
+            if not isinstance(first.value, ast.Constant):
+                continue
+            if not isinstance(first.value.value, str):
+                continue
+
+            docstring = first.value.value
+            start_line = first.lineno
+            for offset, line in enumerate(docstring.splitlines()):
+                lower = line.lower()
+                for phrase in hedge_words:
+                    if phrase.lower() in lower:
+                        yield Violation(
+                            path=path,
+                            line=start_line + offset,
+                            rule=self.rule,
+                            message=f'"{phrase}" signals AI-generated prose',
+                        )
+                        break
+
+
+# ---------------------------------------------------------------------------
+# 5. VAGUE_TODO
 # ---------------------------------------------------------------------------
 
 _VAGUE_TODO_PATTERN = re.compile(
@@ -236,7 +287,7 @@ class VagueTodo(BaseCheck):
 
 
 # ---------------------------------------------------------------------------
-# 5. SINGLE_IMPL_ABC
+# 6. SINGLE_IMPL_ABC
 # ---------------------------------------------------------------------------
 
 class SingleImplAbc(BaseCheck):
@@ -290,7 +341,7 @@ class SingleImplAbc(BaseCheck):
 
 
 # ---------------------------------------------------------------------------
-# 6. GENERIC_VARNAME
+# 7. GENERIC_VARNAME
 # ---------------------------------------------------------------------------
 
 _DEFAULT_GENERIC = {
@@ -323,7 +374,7 @@ class GenericVarname(BaseCheck):
 
 
 # ---------------------------------------------------------------------------
-# 7. TAG_COMMENT
+# 8. TAG_COMMENT
 # ---------------------------------------------------------------------------
 
 _DEFAULT_COMMENT_TAGS = {
@@ -458,5 +509,6 @@ PYTHON_CHECKS = [
 
 # Opt-in checks -- only active when explicitly added to fail_on or warn_only
 OPT_IN_PYTHON_CHECKS = {
+    "DOCSTRING_HEDGE_WORD": DocstringHedgeWord(),
     "TAG_COMMENT": TagComment(),
 }
