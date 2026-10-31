@@ -260,3 +260,9 @@ Yes. Simple regex + file glob in `.grain.toml`. See Custom Rules above.
 
 **Python only?**
 For now. The architecture supports adding language-specific check modules. PRs welcome.
+
+---
+
+## License
+
+[MIT](LICENSE) — Copyright (c) 2026 Michael Martoccia.
