@@ -7,7 +7,13 @@ from pathlib import Path
 from typing import Iterator
 
 # Rules with safe auto-fix implementations (kept in sync with runner.SAFE_FIX_RULES)
-_FIXABLE_RULES = {"OBVIOUS_COMMENT", "VAGUE_TODO", "HEDGE_WORD", "NAKED_EXCEPT"}
+_FIXABLE_RULES = {
+    "OBVIOUS_COMMENT",
+    "VAGUE_TODO",
+    "HEDGE_WORD",
+    "DOCSTRING_HEDGE_WORD",
+    "NAKED_EXCEPT",
+}
 
 
 @dataclass

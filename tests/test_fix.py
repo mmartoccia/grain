@@ -11,7 +11,11 @@ from grain.runner import run_checks, apply_fixes, SAFE_FIX_RULES
 from grain.checks.base import Violation
 
 CONFIG = {
-    "grain": {"fail_on": [], "warn_only": [], "ignore": []},
+    "grain": {
+        "fail_on": ["HEDGE_WORD", "DOCSTRING_HEDGE_WORD"],
+        "warn_only": [],
+        "ignore": [],
+    },
     "python": {"generic_varnames": ["process_data"]},
     "markdown": {"hedge_words": ["robust", "seamless"]},
 }
@@ -227,6 +231,8 @@ class TestSafeFixRules:
         assert "OBVIOUS_COMMENT" in SAFE_FIX_RULES
         assert "VAGUE_TODO" in SAFE_FIX_RULES
         assert "HEDGE_WORD" in SAFE_FIX_RULES
+        assert "DOCSTRING_HEDGE_WORD" in SAFE_FIX_RULES
+        assert Violation("test.py", 1, "DOCSTRING_HEDGE_WORD", "message").fixable
 
     def test_unsafe_rules_excluded(self):
         # NAKED_EXCEPT is now auto-fixable (minimal safe fix: narrow to Exception as e + raise)
@@ -261,5 +267,30 @@ This is a robust solution for data processing.
             fixed_source = Path(path).read_text()
             assert "robust" not in fixed_source.lower()
             assert "solution for data processing" in fixed_source
+        finally:
+            os.unlink(path)
+
+    def test_removes_docstring_hedge_word(self):
+        source = '''\
+def fetch_config():
+    """Read robust configuration from disk."""
+    return {}
+'''
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(source)
+            f.flush()
+            path = f.name
+
+        try:
+            violations = run_checks([path], CONFIG)
+            hedge = [v for v in violations if v.rule == "DOCSTRING_HEDGE_WORD"]
+            assert len(hedge) >= 1
+
+            fix_msgs, remaining = apply_fixes([path], violations, CONFIG)
+
+            fixed_source = Path(path).read_text()
+            assert "robust" not in fixed_source.lower()
+            assert '"""Read configuration from disk."""' in fixed_source
+            assert any("DOCSTRING_HEDGE_WORD" in msg and "removed" in msg for msg in fix_msgs)
         finally:
             os.unlink(path)

@@ -88,6 +88,7 @@ AI code has tells. `grain` flags them so humans -- or agents -- can decide wheth
 | OBVIOUS_COMMENT | error | ✅ | comment restates the following line |
 | NAKED_EXCEPT | error | ✅ | broad except clause with no re-raise |
 | RESTATED_DOCSTRING | warn | ❌ | docstring just expands the function/class name |
+| DOCSTRING_HEDGE_WORD | opt-in | ✅ | docstring contains AI filler words from `[grain.markdown].hedge_words` |
 | VAGUE_TODO | error | ✅ | TODO without specific approach or reason |
 | SINGLE_IMPL_ABC | warn | ❌ | ABC with exactly one concrete implementation |
 | GENERIC_VARNAME | error | ❌ | function named with AI filler (process_data, etc.) |
@@ -97,7 +98,7 @@ AI code has tells. `grain` flags them so humans -- or agents -- can decide wheth
 
 | Rule | Severity | Auto-fix | Description |
 |------|----------|----------|-------------|
-| HEDGE_WORD | error | ✅ | AI filler words (robust, seamless, leverage...) |
+| HEDGE_WORD | error | ✅ | AI filler words in Markdown prose (robust, seamless, leverage...) |
 | THANKS_OPENER | error | ❌ | README opens with "Thanks for contributing" |
 | OBVIOUS_HEADER | warn | ❌ | header restated in following paragraph |
 | BULLET_PROSE | warn | ❌ | short bullets that read better as a sentence |
@@ -175,6 +176,8 @@ hedge_words = ["robust", "seamless", "leverage", "cutting-edge", "powerful",
                "you might want to", "consider using", "it's worth noting", "note that"]
 ```
 
+Add `DOCSTRING_HEDGE_WORD` to `fail_on` or `warn_only` to check Python docstrings using the same `[grain.markdown].hedge_words` list.
+
 **Note:** Use `exclude` under `[grain]`, not a top-level `[ignore]` section. Grain warns on unknown top-level sections.
 
 ---
@@ -247,7 +250,7 @@ Exit 0 = clean. Exit 1 = errors found.
 ## FAQ
 
 **Does grain support auto-fix?**
-Yes. `grain check --fix` handles OBVIOUS_COMMENT, VAGUE_TODO, HEDGE_WORD, and NAKED_EXCEPT (minimal safe fix: narrows bare `except` to `except Exception as e: raise`). Rules requiring judgment are reported but not touched.
+Yes. `grain check --fix` handles OBVIOUS_COMMENT, VAGUE_TODO, HEDGE_WORD, DOCSTRING_HEDGE_WORD, and NAKED_EXCEPT (minimal safe fix: narrows bare `except` to `except Exception as e: raise`). Rules requiring judgment are reported but not touched.
 
 **Can I use grain to drive an AI agent?**
 Yes -- that's the primary agentic use case. Use `--json` to get machine-readable output and `grain worklog` to track multi-session repair progress. See the agentic workflow section above.

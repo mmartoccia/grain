@@ -21,10 +21,19 @@ from grain.config import load_config
 # NAKED_EXCEPT minimal fix: narrows bare except to `except Exception as e: raise`
 # Preserves original behaviour while satisfying the rule.
 # User should tighten exception types manually afterward.
-SAFE_FIX_RULES = {"OBVIOUS_COMMENT", "VAGUE_TODO", "HEDGE_WORD", "NAKED_EXCEPT"}
+SAFE_FIX_RULES = {
+    "OBVIOUS_COMMENT",
+    "VAGUE_TODO",
+    "HEDGE_WORD",
+    "DOCSTRING_HEDGE_WORD",
+    "NAKED_EXCEPT",
+}
 
 # Rules exempt in test files (intentional broad excepts in test harnesses)
 TEST_EXEMPT_RULES = {"NAKED_EXCEPT"}
+
+# Hedge rules are policy-driven and only run when explicitly configured.
+CONFIG_ENABLED_RULES = {"HEDGE_WORD", "DOCSTRING_HEDGE_WORD"}
 
 
 def _get_staged_files() -> list[str]:
@@ -109,6 +118,8 @@ def run_checks(
         checks = (PYTHON_CHECKS + list(active_opt_ins.values())) if kind == "python" else MARKDOWN_CHECKS
 
         for check in checks:
+            if check.rule in CONFIG_ENABLED_RULES and check.rule not in fail_on and check.rule not in warn_only:
+                continue
             if check.rule in ignore_rules:
                 continue
             # Determine severity override
@@ -235,7 +246,7 @@ def _apply_fix(
             return True, "annotated TODO"
         return False, "could not find TODO pattern"
 
-    if rule == "HEDGE_WORD":
+    if rule in {"HEDGE_WORD", "DOCSTRING_HEDGE_WORD"}:
         hedge_words = config.get("markdown", {}).get("hedge_words", [])
         if not hedge_words:
             from grain.checks.markdown_checks import _DEFAULT_HEDGE_WORDS
